@@ -1,0 +1,22 @@
+name = "portfolio-edge"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+ORIGIN_URL = "https://portfolio-web-drab-five.vercel.app"   # your Vercel deployment
+
+# admin.html + login.html live HERE, not on Vercel. The Worker runs first,
+# so nothing in ./private is served unless the code allows it.
+[assets]
+directory = "./private"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+# Free built-in rate limiter (10 requests / 60s per key)
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 10
+  period = 60

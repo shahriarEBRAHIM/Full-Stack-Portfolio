@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Messages</title>
+<style>
+  :root{--ink:#111827;--muted:#6b7280;--line:#e5e7eb;--bubble:#f0f2f5;--blue:#2563eb;--tint:#eff6ff}
+  *{box-sizing:border-box}
+  body{margin:0;height:100vh;background:#fff;color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #app{display:grid;grid-template-columns:340px 1fr;height:100%}
+  aside{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  header[hidden]{display:none}
+  aside header{justify-content:space-between}
+  h1{font-size:1.35rem;margin:0}
+  button{border:0;background:none;font:inherit;color:var(--muted);cursor:pointer}
+  #q{margin:12px 16px;padding:9px 14px;border:0;border-radius:999px;background:var(--bubble);font:inherit}
+  #q:focus{outline:2px solid var(--blue)}
+  #list{list-style:none;margin:0;padding:0 8px;overflow:auto;flex:1}
+  #list li{display:flex;gap:12px;align-items:center;padding:10px;border-radius:10px;cursor:pointer}
+  #list li:hover{background:#f9fafb}#list li.on{background:var(--tint)}
+  .av{width:44px;height:44px;flex:none;border-radius:50%;background:var(--tint);color:var(--blue);display:grid;place-items:center;font-weight:600}
+  .meta{min-width:0;flex:1}
+  .meta b{display:block;font-weight:500}
+  .meta span{display:block;color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  li time{color:var(--muted);font-size:12px}
+  li.unread b,li.unread span{font-weight:700;color:var(--ink)}
+  li.unread time::before{content:"";display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--blue)}
+  #thread{display:flex;flex-direction:column;min-height:0}
+  #thread header .av{width:38px;height:38px}
+  #tSub{color:var(--muted);font-size:13px;display:block}
+  #back{display:none;font-size:26px;line-height:1;color:var(--blue)}
+  #msgs{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:4px}
+  .day{align-self:center;color:var(--muted);font-size:12px;margin:12px 0 6px}
+  .b{max-width:min(520px,80%);padding:9px 14px;border-radius:18px;background:var(--bubble);white-space:pre-wrap;overflow-wrap:anywhere;align-self:flex-start}
+  .t{color:var(--muted);font-size:11px;margin:0 0 6px 6px}
+  .empty{margin:auto;color:var(--muted);text-align:center}
+  @media(max-width:720px){
+    #app{grid-template-columns:1fr}
+    #thread{display:none}
+    #app.open aside{display:none}#app.open #thread{display:flex}
+    #back{display:block}
+  }
+</style></head>
+<body>
+<div id="app">
+  <aside>
+    <header><h1>Messages</h1><button id="out">Sign out</button></header>
+    <input id="q" placeholder="Search messages" type="search">
+    <ul id="list"></ul>
+  </aside>
+  <section id="thread">
+    <header id="tHead" hidden><button id="back" aria-label="Back">‹</button><div class="av" id="tAv"></div><div><b id="tName"></b><small id="tSub"></small></div></header>
+    <div id="msgs"><div class="empty">Select a conversation</div></div>
+  </section>
+</div>
+<script>
+  const $ = id => document.getElementById(id);
+  const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+  const ts = m => Date.parse(m.createdAt);
+  const fmt = t => { const d = new Date(t); return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
+  let convos = [], active = null;
+  const seen = JSON.parse(localStorage.getItem('seen') || '{}');
+
+  async function load() {
+    const r = await fetch('/api/admin/messages');
+    if (r.status === 401) return (location.href = '/login');
+    if (!r.ok) return;
+    const map = new Map();
+    for (const m of (await r.json()).messages) {
+      if (!map.has(m.visitorId)) map.set(m.visitorId, { id: m.visitorId, name: m.name, msgs: [] });
+      const c = map.get(m.visitorId); c.name = m.name; c.msgs.push(m);
+    }
+    convos = [...map.values()].sort((a, b) => ts(b.msgs.at(-1)) - ts(a.msgs.at(-1)));
+    if (active) markSeen();
+    renderList();
+    if (active) renderThread();
+  }
+
+  function markSeen() {
+    const c = convos.find(c => c.id === active);
+    if (c) { seen[active] = ts(c.msgs.at(-1)); localStorage.setItem('seen', JSON.stringify(seen)); }
+  }
+
+  function renderList() {
+    const q = $('q').value.toLowerCase();
+    $('list').replaceChildren();
+    for (const c of convos) {
+      const last = c.msgs.at(-1);
+      if (q && !(c.name + ' ' + c.msgs.map(m => m.text).join(' ')).toLowerCase().includes(q)) continue;
+      const li = el('li', (c.id === active ? 'on ' : '') + (ts(last) > (seen[c.id] || 0) ? 'unread' : ''));
+      const meta = el('div', 'meta'); meta.append(el('b', '', c.name), el('span', '', last.text));
+      li.append(el('div', 'av', c.name[0].toUpperCase()), meta, el('time', '', fmt(ts(last))));
+      li.onclick = () => { active = c.id; markSeen(); $('app').classList.add('open'); renderList(); renderThread(true); };
+      $('list').append(li);
+    }
+    if (!$('list').children.length) $('list').append(el('li', '', convos.length ? 'No matches' : 'No messages yet'));
+  }
+
+  function renderThread(jump) {
+    const c = convos.find(c => c.id === active); if (!c) return;
+    $('tHead').hidden = false;
+    $('tAv').textContent = c.name[0].toUpperCase(); $('tName').textContent = c.name;
+    $('tSub').textContent = c.msgs.length + (c.msgs.length === 1 ? ' message' : ' messages') + ' · ID ' + c.id.slice(0, 8);
+    const box = $('msgs'), atEnd = jump || box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    box.replaceChildren();
+    let day = '';
+    for (const m of c.msgs) {
+      const d = new Date(ts(m)).toDateString();
+      if (d !== day) { day = d; box.append(el('div', 'day', new Date(ts(m)).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }))); }
+      box.append(el('div', 'b', m.text), el('div', 't', fmt(ts(m))));
+    }
+    if (atEnd) box.scrollTop = box.scrollHeight;
+  }
+
+  $('q').oninput = renderList;
+  $('back').onclick = () => $('app').classList.remove('open');
+  $('out').onclick = async () => { await fetch('/api/logout', { method: 'POST' }); location.href = '/login'; };
+  load(); setInterval(() => { if (!document.hidden) load(); }, 5000);
+</script></body></html>

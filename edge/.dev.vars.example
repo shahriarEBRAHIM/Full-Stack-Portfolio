@@ -1,0 +1,4 @@
+ORIGIN_URL=http://localhost:3000
+ADMIN_PASSWORD=change-me
+SESSION_SECRET=any-long-random-string
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}

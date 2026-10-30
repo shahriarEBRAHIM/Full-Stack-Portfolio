@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alex Rivera – Web Developer</title>
+<style>
+  :root{--ink:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#fff;color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{width:100%;max-width:560px}
+  .tag{display:inline-block;padding:4px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:14px}
+  h1{font-size:clamp(2rem,6vw,3rem);line-height:1.15;margin:20px 0 12px;letter-spacing:-.02em}
+  .lead{color:var(--muted);margin:0 0 32px}
+  form{display:grid;gap:12px}
+  textarea,input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;color:inherit;background:#fff}
+  textarea{min-height:120px;resize:vertical}
+  textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+  button{padding:11px 20px;border:0;border-radius:10px;background:var(--ink);color:#fff;font:inherit;font-weight:500;cursor:pointer}
+  button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  button:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:12px;align-items:center}
+  #status{color:var(--muted);font-size:14px}
+  #status.ok{color:#059669}#status.err{color:#dc2626}
+  dialog{border:0;border-radius:16px;padding:24px;width:min(360px,90vw);box-shadow:0 20px 50px rgba(0,0,0,.2)}
+  dialog::backdrop{background:rgba(17,24,39,.4)}
+  dialog h2{margin:0 0 4px;font-size:1.25rem}
+  dialog p{margin:0 0 16px;color:var(--muted);font-size:14px}
+  dialog .row{justify-content:flex-end;margin-top:16px}
+</style>
+</head>
+<body>
+<main>
+  <span class="tag">Available for freelance</span>
+  <h1>Hi, I'm Alex. I build fast, simple websites.</h1>
+  <p class="lead">Frontend developer focused on clean interfaces and small, reliable backends. Send me a message below.</p>
+  <form id="form">
+    <textarea id="text" maxlength="1000" placeholder="Write your message" required></textarea>
+    <div class="row"><button id="send">Send message</button><span id="status" role="status"></span></div>
+  </form>
+</main>
+
+<dialog id="nameDialog">
+  <form id="nameForm">
+    <h2>What should we call you?</h2>
+    <p>Your name helps me reply properly.</p>
+    <input id="nameInput" maxlength="40" placeholder="Your name" autocomplete="given-name" required>
+    <div class="row"><button type="button" id="cancel" class="ghost">Cancel</button><button>Send</button></div>
+  </form>
+</dialog>
+
+<script>
+  const ASK_NAME_EVERY_TIME = false; // true = show the name popup on every send
+  const $ = id => document.getElementById(id);
+  const store = {
+    get: k => { try { return localStorage.getItem(k) } catch { return null } },
+    set: (k, v) => { try { localStorage.setItem(k, v) } catch {} }
+  };
+  const visitorId = store.get('vid') || crypto.randomUUID();
+  store.set('vid', visitorId);
+
+  const status = (msg, cls = '') => { $('status').textContent = msg; $('status').className = cls; };
+
+  async function deliver(name, text) {
+    $('send').disabled = true; status('Sending…');
+    try {
+      const r = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, text, visitorId })
+      });
+      if (r.status === 429) throw new Error('Too many messages. Try again in a minute.');
+      if (!r.ok) throw new Error('Message not sent. Please try again.');
+      $('text').value = '';
+      status('Message sent. Thanks, ' + name + '!', 'ok');
+    } catch (e) { status(e.message, 'err'); }
+    finally { $('send').disabled = false; }
+  }
+
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const text = $('text').value.trim();
+    if (!text) return;
+    const saved = store.get('name');
+    if (saved && !ASK_NAME_EVERY_TIME) return deliver(saved, text);
+    $('nameInput').value = saved || '';
+    $('nameDialog').showModal();
+  });
+
+  $('nameForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('nameInput').value.trim();
+    if (!name) return;
+    store.set('name', name);
+    $('nameDialog').close();
+    deliver(name, $('text').value.trim());
+  });
+  $('cancel').onclick = () => $('nameDialog').close();
+</script>
+</body>
+</html>
