@@ -1,4 +1,4 @@
-# Portfolio demo: Vercel + Cloudflare + Firestore
+# Portfolio Structure: Vercel + Cloudflare + Firestore
 
 ```
 Browser ──► Cloudflare Worker (your public URL)
